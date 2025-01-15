@@ -6,7 +6,8 @@ from typing import List
 
 from azure.ai.projects import AIProjectClient, models
 from azure.identity import DefaultAzureCredential
-from pathlib import Path
+
+from src.agents._meta import FoundryAgent
 
 
 class AgentFactory(ABC):
@@ -22,13 +23,12 @@ class AgentFactory(ABC):
             conn_str=os.getenv("PROJECT_CONNECTION_STRING", "")
         )
 
-    @abstractmethod
     def create_agent(self, tools: List[models.AsyncFunctionTool]) -> models.Agent:
         """
         Note that the Creator may also provide some default implementation of the factory method.
         """
         with self.project_client as agent_client:
-            agent = agent_client.agents.create_agent(
+            agent: models.Agent = agent_client.agents.create_agent(
                 model="gpt-4o-mini",
                 name="my-agent",
                 instructions="You are helpful agent",
@@ -36,6 +36,10 @@ class AgentFactory(ABC):
                 tool_resources=[tool.resources for tool in tools]
             )
         return agent
+
+    @abstractmethod
+    def factory_method(self, agents: List[models.Agent]) -> List[FoundryAgent]:
+        pass
 
     def __call__(self, *args, **kwargs) -> str:
         """
@@ -50,6 +54,7 @@ class AgentFactory(ABC):
 
 
 class MultiAgentContext(ABC):
+
     def __init__(self) -> None:
         self.agents: List[models.Agent] = []
 

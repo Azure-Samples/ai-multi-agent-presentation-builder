@@ -95,25 +95,25 @@ class MultiAgent:
         kernel.add_service(AzureChatCompletion(service_id=service_id, 
                                                deployment_name=deployment_name))
         return kernel
-    
+
     @staticmethod
     def _standardize_string(input_string: str) -> str:
         return re.sub(r'[^0-9A-Za-z_-]', '_', input_string)
-    
+
     def create_agents(self, dynamic_agents):
         expert_agents = []
         for agent in dynamic_agents:
 
             agent_name = self._standardize_string(agent['name'])
             kernel = self._create_kernel_with_chat_completion(agent_name, self.model)            
-        
+
             # Configure the function choice behavior to auto invoke kernel functions
             settings = kernel.get_prompt_execution_settings_from_service_id(service_id=agent_name)
             settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
 
             kernel.add_plugin(WebSearchEnginePlugin(BingConnector()), "WebSearch")
             kernel.add_plugin(PresentationPlugin(), "Presentation")
-           
+
             expert = ChatCompletionAgent(service_id=agent_name,
                                          kernel=kernel,
                                          name=agent_name,
@@ -124,18 +124,26 @@ class MultiAgent:
 
             print(f"Created agent: {expert.name}, agent ID: {expert.id} ")
         return expert_agents
-    
+
     def create_selection_function(self, expert_agents):
-        selection_function = KernelFunctionFromPrompt(function_name="selection",
-                                                      prompt=self.template_selection.render(expert_agents=expert_agents,
-                                                                                            history=f"{{{{$history}}}}"))
+        selection_function = KernelFunctionFromPrompt(
+            function_name="selection",
+            prompt=self.template_selection.render(
+                expert_agents=expert_agents,
+                history=f"{{{{$history}}}}"
+            )
+        )
         return selection_function
-    
+
     def create_termination_function(self, termination_keyword):
-        selection_function = KernelFunctionFromPrompt(function_name="termination",
-                                                      prompt=self.template_termination.render(termination_keyword=termination_keyword,
-                                                                                              history=f"{{{{$history}}}}"))
-              
+        selection_function = KernelFunctionFromPrompt(
+            function_name="termination",
+            prompt=self.template_termination.render(
+                termination_keyword=termination_keyword,
+                history=f"{{{{$history}}}}"
+            )
+        )
+
         return selection_function
 
     def create_chat_group(self, expert_agents, selection_function, termination_function, termination_keyword):
@@ -158,7 +166,6 @@ class MultiAgent:
                         )
           
         return group
-
 
     def auth_callback_factory(self, scope):
         auth_token = None
