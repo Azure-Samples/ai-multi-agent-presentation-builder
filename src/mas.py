@@ -8,6 +8,7 @@ from semantic_kernel.agents import AgentGroupChat, ChatCompletionAgent
 from semantic_kernel.agents.strategies.selection.kernel_function_selection_strategy import (
     KernelFunctionSelectionStrategy,
 )
+from semantic_kernel.functions import KernelFunctionFromMethod
 from semantic_kernel.agents.strategies.termination.kernel_function_termination_strategy import (
     KernelFunctionTerminationStrategy,
 )
@@ -17,33 +18,41 @@ from azure.identity import DefaultAzureCredential
 from semantic_kernel.connectors.search_engine import BingConnector
 from semantic_kernel.core_plugins import WebSearchEnginePlugin
 from semantic_kernel.connectors.ai.function_choice_behavior import FunctionChoiceBehavior
-from azure.core.exceptions import ClientAuthenticationError
-from azure.identity import DefaultAzureCredential
 from semantic_kernel.exceptions.function_exceptions import FunctionExecutionException
+from azure.core.exceptions import ClientAuthenticationError
 
 from src.plugins.presentation import PresentationPlugin
+
+
+def evaluate_logic():
+    return "Logical Evaluation Complete."
 
 
 class Orchestrator:
 
     def __init__(self, user_input, num_agents):
         self.client = AzureOpenAI(
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+            api_key=os.getenv("AZURE_OPENAI_API_KEY", ""),
             api_version="2024-12-01-preview"
         )
 
-        self.env = Environment(loader=FileSystemLoader(os.getenv('TEMPLATE_DIR_PROMPTS')))
-        self.template = self.env.get_template(os.getenv('TEMPLATE_SYSTEM_ORCHESTRATOR'))
+        self.env = Environment(loader=FileSystemLoader(os.getenv('TEMPLATE_DIR_PROMPTS', '')))
+        self.template = self.env.get_template(os.getenv('TEMPLATE_SYSTEM_ORCHESTRATOR', ''))
         self.theme = user_input
         self.num_agents = num_agents
 
     def get_response(self):
         response = self.client.chat.completions.create(
-            model=os.getenv("AZURE_OPENAI_MODEL_ORCHESTRATOR"),
+            model=os.getenv("AZURE_OPENAI_MODEL_ORCHESTRATOR", ""),
             messages=[
-                {"role": "user", "content": self.template.render(theme=self.theme,
-                                                                num_agents=self.num_agents)},
+                {
+                    "role": "user",
+                    "content": self.template.render(
+                        theme=self.theme,
+                        num_agents=self.num_agents
+                    )
+                },
             ],
             max_completion_tokens=5000
         )
@@ -92,8 +101,10 @@ class MultiAgent:
     @staticmethod
     def _create_kernel_with_chat_completion(service_id: str, deployment_name: str) -> Kernel:
         kernel = Kernel()
-        kernel.add_service(AzureChatCompletion(service_id=service_id, 
-                                               deployment_name=deployment_name))
+        kernel.add_service(AzureChatCompletion(
+            service_id=service_id,
+            deployment_name=deployment_name
+        ))
         return kernel
 
     @staticmethod
@@ -105,12 +116,13 @@ class MultiAgent:
         for agent in dynamic_agents:
 
             agent_name = self._standardize_string(agent['name'])
-            kernel = self._create_kernel_with_chat_completion(agent_name, self.model)            
+            kernel = self._create_kernel_with_chat_completion(agent_name, self.model)
 
             # Configure the function choice behavior to auto invoke kernel functions
             settings = kernel.get_prompt_execution_settings_from_service_id(service_id=agent_name)
             settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
-
+            # Create a plugin and add it to the Kernel
+            kernel.add_plugin(KernelFunctionFromMethod(evaluate_logic, "LogicEvaluator"))
             kernel.add_plugin(WebSearchEnginePlugin(BingConnector()), "WebSearch")
             kernel.add_plugin(PresentationPlugin(), "Presentation")
 
@@ -148,23 +160,23 @@ class MultiAgent:
 
     def create_chat_group(self, expert_agents, selection_function, termination_function, termination_keyword):
         group = AgentGroupChat(agents=expert_agents,
-                               selection_strategy=KernelFunctionSelectionStrategy(
-                                    function=selection_function,
-                                    kernel=self._create_kernel_with_chat_completion("selection", self.model),
-                                    result_parser=lambda result: str(result.value[0]) if result.value is not None else expert_agents[-1].name,
-                                    agent_variable_name="agents",
-                                    history_variable_name="history",
-                                ),
-                                termination_strategy=KernelFunctionTerminationStrategy(
-                                    agents=[expert_agents[-1]],
-                                    function=termination_function,
-                                    kernel=self._create_kernel_with_chat_completion("termination", self.model),
-                                    result_parser=lambda result: termination_keyword in str(result.value[0]).lower(),
-                                    history_variable_name="history",
-                                    maximum_iterations=2,
-                                ),
-                        )
-          
+                selection_strategy=KernelFunctionSelectionStrategy(
+                    function=selection_function,
+                    kernel=self._create_kernel_with_chat_completion("selection", self.model),
+                    result_parser=lambda result: str(result.value[0]) if result.value is not None else expert_agents[-1].name,
+                    agent_variable_name="agents",
+                    history_variable_name="history",
+                ),
+                termination_strategy=KernelFunctionTerminationStrategy(
+                    agents=[expert_agents[-1]],
+                    function=termination_function,
+                    kernel=self._create_kernel_with_chat_completion("termination", self.model),
+                    result_parser=lambda result: termination_keyword in str(result.value[0]).lower(),
+                    history_variable_name="history",
+                    maximum_iterations=2,
+                ),
+        )
+
         return group
 
     def auth_callback_factory(self, scope):

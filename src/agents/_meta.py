@@ -43,9 +43,10 @@ class FoundryAgent(Agent):
         self,
         foundry_agent: models.Agent,
         foundry_thread: models.AgentThread,
+        foundry_messages: models.OpenAIPageableListOfThreadMessage,
         service_id: str | None = None,
         kernel: "Kernel | None" = None,
-        execution_settings: PromptExecutionSettings | None = None,
+        execution_settings: PromptExecutionSettings | None = None
     ) -> None:
         """Initialize a new instance of FoundryAgent.
 
@@ -57,6 +58,7 @@ class FoundryAgent(Agent):
         """
         self.foundry_agent = foundry_agent
         self.foundry_thread = foundry_thread
+        self.foundry_messages = foundry_messages
 
         if not service_id:
             service_id = DEFAULT_SERVICE_NAME
@@ -201,10 +203,16 @@ class FoundryAgent(Agent):
     def __sync_chat_history(self, history: ChatHistory) -> None:
         """Sync the chat history."""
         for message in history.messages:
-            message.name = self.name
+            message.name
+            
 
     def _setup_agent_chat_history(self, history: ChatHistory) -> ChatHistory:
         """Setup the agent chat history."""
+        thread = self.foundry_messages
+        for message in thread.data:
+            ChatMessageContent(role=message.role, content=' '.join(message.content), name=self.name)
+            message.name = self.name
+            history.add_message(message)
         chat = []
 
         if self.instructions is not None:

@@ -23,7 +23,7 @@ class AgentFactory(ABC):
             conn_str=os.getenv("PROJECT_CONNECTION_STRING", "")
         )
 
-    def create_agent(self, tools: List[models.AsyncFunctionTool]) -> models.Agent:
+    def create_agent(self, tools: List[models.AsyncFunctionTool]) -> FoundryAgent:
         """
         Note that the Creator may also provide some default implementation of the factory method.
         """
@@ -35,7 +35,16 @@ class AgentFactory(ABC):
                 tools=[tool.definitions for tool in tools],
                 tool_resources=[tool.resources for tool in tools]
             )
-        return agent
+            thread = agent_client.agents.create_thread()
+            messages = agent_client.agents.list_messages(
+                thread_id=thread.id
+            )
+        return FoundryAgent(
+            foundry_agent=agent,
+            foundry_thread=thread,
+            foundry_messages=messages,
+            service_id="foundry"
+        )
 
     @abstractmethod
     def factory_method(self, agents: List[models.Agent]) -> List[FoundryAgent]:

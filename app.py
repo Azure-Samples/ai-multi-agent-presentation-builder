@@ -74,7 +74,7 @@ async def run(user_input, num_agents):
 
 async def main(user_input, num_agents, max_interactions=10):
     expert_agents, expert_agents_names, mas = await run(user_input, num_agents)
-    
+
     with st.sidebar:
         st.title("Expert Agents")
         agent_placeholders = {name: st.empty() for name in expert_agents_names}
@@ -118,7 +118,7 @@ async def main(user_input, num_agents, max_interactions=10):
                     file_name="presentation.pptx",
                     mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
                 )
-        
+
                 break
 
 def app():
