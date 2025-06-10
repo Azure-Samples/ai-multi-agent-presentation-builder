@@ -84,7 +84,7 @@ python-pptx==1.0.2
 pytz==2025.1
 PyYAML==6.0.2
 referencing==0.36.2
-requests==2.32.3
+requests==2.32.4
 rfc3339-validator==0.1.4
 rpds-py==0.23.1
 ruamel.yaml==0.18.10
